@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
 // Generator генерирует последовательность чисел 1,2,3 и т.д. и
@@ -12,6 +13,7 @@ import (
 // вызывается функция fn. Она служит для подсчёта количества и суммы
 // сгенерированных чисел.
 func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
+	defer close(ch)
 	for i := int64(1); ; i++ {
 		select {
 		case <-ctx.Done():
@@ -24,16 +26,21 @@ func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 
 // Worker читает число из канала in и пишет его в канал out.
 func Worker(in <-chan int64, out chan<- int64) {
-	for num := range in {
+	defer close(out)
+	for {
+		num, ok := <-in
+		if !ok {
+			return
+		}
 		out <- num
+		time.Sleep(1 * time.Millisecond)
 	}
-	close(out)
 }
 
 func main() {
 	chIn := make(chan int64)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	// для проверки будем считать количество и сумму отправленных чисел
